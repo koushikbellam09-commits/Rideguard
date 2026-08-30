@@ -1,0 +1,111 @@
+/**
+ * app/(tabs)/history.tsx
+ * RideGuard — History screen: past rides and alerts.
+ */
+
+import React from 'react';
+import { View, Text, StyleSheet, SafeAreaView, FlatList } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+const ACCENT = '#D32F2F';
+
+// Placeholder — wire this to your ride/alert log storage when ready.
+const HISTORY_ITEMS: any[] = [];
+
+export default function HistoryScreen() {
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>History</Text>
+      </View>
+
+      {HISTORY_ITEMS.length === 0 ? (
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="time-outline" size={36} color="#C4C4C4" />
+          </View>
+          <Text style={styles.emptyTitle}>No rides yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Your ride history and any crash alerts will show up here once
+            RideGuard starts monitoring.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={HISTORY_ITEMS}
+          keyExtractor={(item, i) => String(i)}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <View style={styles.historyCard}>
+              <Text style={styles.historyTitle}>{item.title}</Text>
+              <Text style={styles.historyDate}>{item.date}</Text>
+            </View>
+          )}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1A1A1A',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  list: {
+    padding: 20,
+  },
+  historyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+  },
+  historyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  historyDate: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+});
