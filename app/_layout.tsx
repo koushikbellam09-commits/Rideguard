@@ -1,6 +1,7 @@
+import { retryPendingAlertIfAny } from '../crashAlertService';
 import { startCrashDetection, stopCrashDetection } from '../CrashDetector';
 import CrashConfirmationOverlay from '../CrashConfirmationOverlay';
-import { checkAndShowBackgroundPermissionGuide } from '../backgroundPermissionGuide
+import { checkAndShowBackgroundPermissionGuide } from '../backgroundPermissionGuide';
 import { startCarryPositionDetection, stopCarryPositionDetection } from '../carryPositionDetector'; 
 import { useEffect } from 'react';
 import { startBackgroundRideDetection } from '../backgroundRideDetection';
@@ -27,6 +28,7 @@ export default function RootLayout() {
      stopCarryPositionDetection();
   };
   startBackgroundRideDetection();
+  retryPendingAlertIfAny();
   checkAndShowBackgroundPermissionGuide();
 }, []);
 

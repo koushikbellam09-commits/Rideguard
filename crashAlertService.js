@@ -22,6 +22,11 @@ import { getContactsForAlert } from './contactsStorage';
 
 const ALERT_LOG_KEY = 'rideguard_alert_log_v1';
 const MAX_LOG_ENTRIES = 50;
+ const PENDING_ALERT_KEY = 'rideguard_pending_alert_v1';
+const RETRY_INTERVAL_MS = 30000; // retry every 30s
+const MAX_RETRY_WINDOW_MS = 5 * 60 * 1000; // give up after 5 minutes
+let retryTimer = null;
+
 
 function buildAlertMessage(coords) {
   const mapsLink = coords
@@ -109,6 +114,62 @@ async function tryWhatsAppFallback(phoneNumber, message) {
  * back to opening WhatsApp for the primary contact.
  * Returns { success, channel, sentTo, error? }.
  */
+async function savePendingAlert(contacts) {
+  try {
+    await AsyncStorage.setItem(
+      PENDING_ALERT_KEY,
+      JSON.stringify({ contacts, firstAttempt: Date.now() })
+    );
+  } catch (e) {
+    console.warn('RideGuard: failed to save pending alert', e);
+  }
+}
+
+async function clearPendingAlert() {
+  try {
+    await AsyncStorage.removeItem(PENDING_ALERT_KEY);
+  } catch (e) {
+    console.warn('RideGuard: failed to clear pending alert', e);
+  }
+}
+
+/**
+ * Checks for a pending (previously failed) alert and retries sending it.
+ * Call this on app launch and periodically while a ride is active.
+ * Gives up and clears the pending alert after MAX_RETRY_WINDOW_MS.
+ */
+export async function retryPendingAlertIfAny() {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_ALERT_KEY);
+    if (!raw) return;
+
+    const pending = JSON.parse(raw);
+    if (Date.now() - pending.firstAttempt >= MAX_RETRY_WINDOW_MS) {
+      await clearPendingAlert();
+      return;
+    }
+
+    const result = await sendCrashAlert();
+    if (result.success) {
+      await clearPendingAlert();
+    }
+  } catch (e) {
+    console.warn('RideGuard: retry attempt failed', e);
+  }
+}
+
+/** Starts a periodic retry check. Safe to call multiple times. */
+export function startPendingAlertRetries() {
+  if (retryTimer) return;
+  retryTimer = setInterval(retryPendingAlertIfAny, RETRY_INTERVAL_MS);
+}
+
+export function stopPendingAlertRetries() {
+  if (retryTimer) {
+    clearInterval(retryTimer);
+    retryTimer = null;
+  }
+}
 export async function sendCrashAlert() {
   const contacts = await getContactsForAlert();
 
@@ -176,5 +237,7 @@ export async function sendCrashAlert() {
     smsOutcome,
   };
   await logAlertAttempt(failed);
+  await savePendingAlert(contacts);
+     startPendingAlertRetries();
   return failed;
 }
