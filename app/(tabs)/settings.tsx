@@ -3,7 +3,7 @@
  * RideGuard — Settings screen.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,30 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  startCarryPositionDetection,
+  stopCarryPositionDetection,
+  getCurrentCarryPosition,
+} from '../../carryPositionDetector';
 
 const ACCENT = '#D32F2F';
+
+const SENSITIVITY_KEY = 'rideguard_sensitivity';
+const SENSITIVITY_LEVELS = ['Low', 'Medium', 'High'];
+
+const CARRY_LABELS: Record<string, string> = {
+  pocket: 'Pocket',
+  bag: 'Bag',
+  mounted: 'Handlebar mount',
+  hand: 'In hand',
+  unknown: 'Detecting…',
+};
 
 function SettingsRow({
   icon,
@@ -52,8 +71,82 @@ function SectionHeader({ title }: { title: string }) {
   return <Text style={styles.sectionHeader}>{title}</Text>;
 }
 
+function OptionModal({
+  visible,
+  title,
+  options,
+  selected,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  options: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity
+        style={modalStyles.backdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={modalStyles.sheet}>
+          <Text style={modalStyles.title}>{title}</Text>
+          <FlatList
+            data={options}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={modalStyles.option}
+                onPress={() => {
+                  onSelect(item);
+                  onClose();
+                }}
+              >
+                <Text style={modalStyles.optionText}>{item}</Text>
+                {item === selected && (
+                  <Ionicons name="checkmark" size={20} color={ACCENT} />
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
+
+  const [carryPosition, setCarryPosition] = useState(getCurrentCarryPosition());
+  const [sensitivity, setSensitivity] = useState('Medium');
+  const [sensitivityModalOpen, setSensitivityModalOpen] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const savedSensitivity = await AsyncStorage.getItem(SENSITIVITY_KEY);
+      if (savedSensitivity) setSensitivity(savedSensitivity);
+    })();
+
+    startCarryPositionDetection();
+    (global as any).onCarryPositionChanged = (position: string) => {
+      setCarryPosition(position);
+    };
+
+    return () => {
+      stopCarryPositionDetection();
+      (global as any).onCarryPositionChanged = undefined;
+    };
+  }, []);
+
+  const handleSensitivitySelect = async (value: string) => {
+    setSensitivity(value);
+    await AsyncStorage.setItem(SENSITIVITY_KEY, value);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -70,11 +163,16 @@ export default function SettingsScreen() {
             label="Emergency contacts"
             onPress={() => router.push('/contacts')}
           />
-          <SettingsRow icon="briefcase" label="Carry mode" value="Pocket" />
+          <SettingsRow
+            icon="briefcase"
+            label="Carry mode"
+            value={CARRY_LABELS[carryPosition] ?? 'Detecting…'}
+          />
           <SettingsRow
             icon="speedometer"
             label="Crash sensitivity"
-            value="Medium"
+            value={sensitivity}
+            onPress={() => setSensitivityModalOpen(true)}
           />
         </View>
 
@@ -97,6 +195,15 @@ export default function SettingsScreen() {
           <SettingsRow icon="information-circle" label="Version" value="1.0.0" />
         </View>
       </ScrollView>
+
+      <OptionModal
+        visible={sensitivityModalOpen}
+        title="Crash sensitivity"
+        options={SENSITIVITY_LEVELS}
+        selected={sensitivity}
+        onSelect={handleSensitivitySelect}
+        onClose={() => setSensitivityModalOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -158,5 +265,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     marginRight: 4,
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 12,
+  },
+  option: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EFEFEF',
+  },
+  optionText: {
+    fontSize: 15,
+    color: '#1A1A1A',
   },
 });
